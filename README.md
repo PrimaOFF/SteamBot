@@ -1,54 +1,75 @@
 # CS2 Float Checker
 
-An automated tool to scan the Steam Market for CS2 skins with rare float values. This tool helps identify undervalued skins with exceptionally low or high float values that could be valuable for trading or investment.
+An advanced automated tool that scans the Steam Market for CS2 skins with rare float values. This tool helps identify undervalued skins with exceptionally low or high float values that could be valuable for trading or investment.
 
-## Features
+## 🚀 Quick Start
 
-- **Automated Market Scanning**: Continuously monitors Steam Market listings for CS2 skins
-- **Float Value Analysis**: Identifies rare float values (very low FN or very high BS)
-- **Skin-Specific Ranges**: Handles different float ranges for different skins
-- **Rarity Scoring**: Assigns rarity scores (0-100) to help identify the most valuable finds
-- **Database Storage**: Stores all findings in SQLite database for historical analysis
-- **Real-time Notifications**: Alerts when rare items are found
-- **Export Functionality**: Export findings to JSON for further analysis
-
-## Installation
-
-1. Install Python 3.7+ and pip
-2. Install required dependencies:
+### Simple Setup (Recommended)
+1. Clone this repository
+2. Run the setup script:
 ```bash
-pip install -r requirements.txt
+python3 setup.py
+```
+3. Follow the interactive setup to configure Steam API key and Telegram notifications
+4. Start scanning:
+```bash
+python3 run.py
 ```
 
-3. Set up Steam API key (optional but recommended):
+### Manual Setup
+1. Install Python 3.7+ and pip
+2. Install dependencies: `pip install -r requirements.txt`
+3. Get Steam API key from: https://steamcommunity.com/dev/apikey
+4. Set environment variables:
 ```bash
 export STEAM_API_KEY="your_steam_api_key_here"
+export TELEGRAM_BOT_TOKEN="your_bot_token"  # Optional
+export TELEGRAM_CHAT_ID="your_chat_id"     # Optional
 ```
 
-## Usage
+## ✨ Features
 
-### Basic Scanning
-Scan specific items:
+- **🔍 Comprehensive Scanning**: Scans ALL CS2 weapons and skins from database
+- **🎯 Smart Float Analysis**: Uses actual skin-specific float ranges (not just 0-1)
+- **📱 Telegram Notifications**: Real-time alerts for rare float finds
+- **📊 Advanced Rarity Scoring**: Dynamic scoring based on actual float distributions
+- **💾 Database Tracking**: SQLite database for historical analysis
+- **🔄 Continuous Monitoring**: Automated scanning with configurable intervals
+- **📈 Export Functionality**: JSON export for further analysis
+- **🛡️ Rate Limiting**: Respects Steam's API limits
+
+## 📋 Usage
+
+### Interactive Mode (Easiest)
 ```bash
-python float_checker.py --items "AK-47 | Redline" "AWP | Dragon Lore"
+python3 run.py
 ```
+Choose from scanning options:
+1. Scan all weapons (comprehensive)
+2. Scan monitored items only  
+3. Continuous scanning
+4. Custom item scan
+5. Show statistics
 
-### Continuous Monitoring
-Run continuous scanning with 30-minute intervals:
+### Command Line Interface
 ```bash
-python float_checker.py --continuous --interval 30
-```
+# Scan all weapons from database
+python3 float_checker.py --all-weapons
 
-### Export Results
-Export rare finds to JSON:
-```bash
-python float_checker.py --export rare_items.json
-```
+# Continuous monitoring
+python3 float_checker.py --continuous --interval 30
 
-### View Statistics
-Check database statistics:
-```bash
-python float_checker.py --stats
+# Scan specific items
+python3 float_checker.py --items "AK-47 | Redline" "AWP | Dragon Lore"
+
+# Test Telegram notifications
+python3 float_checker.py --test-telegram
+
+# Export rare finds
+python3 float_checker.py --export rare_finds.json
+
+# Show database statistics
+python3 float_checker.py --stats
 ```
 
 ## Configuration

@@ -12,6 +12,8 @@ from steam_market_api import SteamMarketAPI
 from float_analyzer import FloatAnalyzer, FloatAnalysis
 from database import FloatDatabase
 from config import FloatCheckerConfig
+from skin_database import SkinDatabase
+from telegram_bot import TelegramNotifier
 
 class CS2FloatChecker:
     def __init__(self):
@@ -19,6 +21,8 @@ class CS2FloatChecker:
         self.steam_api = SteamMarketAPI()
         self.analyzer = FloatAnalyzer()
         self.database = FloatDatabase()
+        self.skin_db = SkinDatabase()
+        self.telegram = TelegramNotifier()
         self.setup_logging()
         
         # Statistics
@@ -27,7 +31,9 @@ class CS2FloatChecker:
             'rare_items_found': 0,
             'total_value_found': 0.0,
             'start_time': None,
-            'errors': 0
+            'errors': 0,
+            'weapon_stats': {},
+            'best_find': None
         }
     
     def setup_logging(self):
@@ -83,10 +89,23 @@ class CS2FloatChecker:
                         self.database.save_analysis(analysis)
                         
                         self.stats['items_checked'] += 1
+                        
+                        # Update weapon stats
+                        weapon = analysis.item_name.split(' | ')[0] if ' | ' in analysis.item_name else analysis.item_name
+                        self.stats['weapon_stats'][weapon] = self.stats['weapon_stats'].get(weapon, 0) + 1
+                        
                         if analysis.is_rare:
                             self.stats['rare_items_found'] += 1
                             self.stats['total_value_found'] += analysis.price
+                            
+                            # Update best find
+                            if not self.stats['best_find'] or analysis.rarity_score > self.stats['best_find'].rarity_score:
+                                self.stats['best_find'] = analysis
+                            
                             self.logger.info(f"RARE ITEM FOUND: {analysis.item_name} - Float: {analysis.float_value:.6f} - Score: {analysis.rarity_score}")
+                            
+                            # Send Telegram notification
+                            self.telegram.send_rare_float_alert(analysis)
                 
                 # Rate limiting
                 self.steam_api.rate_limit_delay()
@@ -132,6 +151,7 @@ class CS2FloatChecker:
         results = {}
         
         self.logger.info(f"Starting scan of {len(item_names)} items...")
+        self.telegram.send_startup_notification()
         
         for i, item_name in enumerate(item_names, 1):
             self.logger.info(f"Progress: {i}/{len(item_names)} - {item_name}")
@@ -144,6 +164,10 @@ class CS2FloatChecker:
         
         self.logger.info("Scan completed!")
         self.print_final_stats()
+        
+        # Send completion summary
+        summary_stats = self._prepare_summary_stats()
+        self.telegram.send_daily_summary(summary_stats)
         
         return results
     
@@ -210,6 +234,48 @@ class CS2FloatChecker:
             json.dump(rare_items, f, indent=2, default=str)
         
         self.logger.info(f"Exported {len(rare_items)} rare finds to {filename}")
+    
+    def _prepare_summary_stats(self) -> Dict:
+        """Prepare summary statistics for notifications"""
+        runtime = datetime.now() - self.stats['start_time'] if self.stats['start_time'] else timedelta(0)
+        
+        return {
+            'items_scanned': self.stats['items_checked'],
+            'rare_items_found': self.stats['rare_items_found'],
+            'total_value': self.stats['total_value_found'],
+            'scan_duration': str(runtime).split('.')[0],  # Remove microseconds
+            'errors': self.stats['errors'],
+            'best_find': f"{self.stats['best_find'].item_name} (Score: {self.stats['best_find'].rarity_score:.1f})" if self.stats['best_find'] else "None",
+            'weapon_stats': self.stats['weapon_stats']
+        }
+    
+    def scan_all_weapons(self, max_items_per_weapon: int = 20) -> Dict[str, List[FloatAnalysis]]:
+        """Scan all available weapons from the database"""
+        self.logger.info("Starting comprehensive weapon scan...")
+        
+        all_weapons = self.skin_db.get_all_weapons()
+        self.logger.info(f"Found {len(all_weapons)} weapon types in database")
+        
+        results = {}
+        total_items = []
+        
+        # Get representative skins for each weapon
+        for weapon in all_weapons[:50]:  # Limit to first 50 weapons to avoid overwhelming
+            weapon_skins = self.skin_db.get_skins_by_weapon(weapon)
+            
+            # Select most popular/valuable skins for each weapon
+            selected_skins = weapon_skins[:max_items_per_weapon]
+            
+            for skin in selected_skins:
+                total_items.append(skin.name)
+        
+        self.logger.info(f"Selected {len(total_items)} items to scan")
+        
+        return self.scan_multiple_items(total_items)
+    
+    def test_telegram(self) -> bool:
+        """Test Telegram connection"""
+        return self.telegram.test_connection()
 
 def main():
     parser = argparse.ArgumentParser(description='CS2 Float Checker - Scan Steam Market for rare float values')
@@ -219,6 +285,8 @@ def main():
     parser.add_argument('--max-listings', type=int, default=50, help='Max listings to check per item (default: 50)')
     parser.add_argument('--export', type=str, help='Export rare finds to JSON file')
     parser.add_argument('--stats', action='store_true', help='Show database statistics')
+    parser.add_argument('--all-weapons', action='store_true', help='Scan all weapons from database')
+    parser.add_argument('--test-telegram', action='store_true', help='Test Telegram notifications')
     
     args = parser.parse_args()
     
@@ -233,6 +301,15 @@ def main():
     
     if args.export:
         checker.export_rare_finds(args.export)
+        return
+    
+    if args.test_telegram:
+        success = checker.test_telegram()
+        print("✅ Telegram test successful!" if success else "❌ Telegram test failed!")
+        return
+    
+    if args.all_weapons:
+        checker.scan_all_weapons()
         return
     
     # Determine items to scan
