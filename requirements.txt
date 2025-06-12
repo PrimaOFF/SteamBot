@@ -1,0 +1,8 @@
+requests>=2.28.0
+sqlite3
+logging
+asyncio
+argparse
+json
+urllib3>=1.26.0
+datetime
