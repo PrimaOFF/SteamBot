@@ -311,10 +311,6 @@ class EnhancedFloatChecker:
                     except Exception as inner_e:
                         self.logger.error(f"Error in fallback processing: {inner_e}")
                         continue
-                    
-                except Exception as e:
-                    self.logger.debug(f"Error processing inspect link: {e}")
-                    continue
             
             return extreme_analyses
             
