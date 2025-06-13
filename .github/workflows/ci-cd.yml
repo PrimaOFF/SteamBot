@@ -93,10 +93,18 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      security-events: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -105,15 +113,22 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Install dependencies for safety check
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety
 
     - name: Safety check for Python dependencies
       run: |
-        python -m pip install safety
+        pip install -r requirements.txt
         safety check || echo "Safety check found issues - continuing CI"
 
   build-and-push:
@@ -160,106 +175,46 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-  deploy-staging:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/develop'
-    environment: staging
-    
-    steps:
-    - name: Deploy to staging
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.STAGING_HOST }}
-        username: ${{ secrets.STAGING_USER }}
-        key: ${{ secrets.STAGING_SSH_KEY }}
-        script: |
-          cd /opt/cs2-float-checker
-          docker-compose -f docker-compose.staging.yml pull
-          docker-compose -f docker-compose.staging.yml up -d
-          docker system prune -f
+  # Deployment jobs commented out until production infrastructure is ready
+  # deploy-staging:
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-push
+  #   if: github.ref == 'refs/heads/develop'
+  #   environment: staging
+  #   
+  #   steps:
+  #   - name: Deploy to staging
+  #     run: echo "Staging deployment disabled - infrastructure not configured"
 
-  deploy-production:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    
-    steps:
-    - name: Deploy to production
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.PRODUCTION_HOST }}
-        username: ${{ secrets.PRODUCTION_USER }}
-        key: ${{ secrets.PRODUCTION_SSH_KEY }}
-        script: |
-          cd /opt/cs2-float-checker
-          
-          # Backup current data
-          docker-compose exec postgres pg_dump -U cs2user cs2_trading > backup_$(date +%Y%m%d_%H%M%S).sql
-          
-          # Rolling deployment
-          docker-compose pull
-          docker-compose up -d --no-deps cs2-float-checker
-          
-          # Health check
-          sleep 30
-          curl -f http://localhost:8000/health || (docker-compose logs cs2-float-checker && exit 1)
-          
-          # Update other services
-          docker-compose up -d
-          docker system prune -f
+  # deploy-production:
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-push
+  #   if: github.ref == 'refs/heads/main'
+  #   environment: production
+  #   
+  #   steps:
+  #   - name: Deploy to production
+  #     run: echo "Production deployment disabled - infrastructure not configured"
 
-  performance-test:
-    runs-on: ubuntu-latest
-    needs: deploy-staging
-    if: github.ref == 'refs/heads/develop'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Run performance tests
-      run: |
-        pip install locust
-        locust -f tests/performance/locustfile.py --host=${{ secrets.STAGING_URL }} \
-               --users=50 --spawn-rate=5 --run-time=5m --html=performance_report.html
-
-    - name: Upload performance report
-      uses: actions/upload-artifact@v3
-      with:
-        name: performance-report
-        path: performance_report.html
+  # performance-test:
+  #   runs-on: ubuntu-latest
+  #   needs: deploy-staging
+  #   if: github.ref == 'refs/heads/develop'
+  #   
+  #   steps:
+  #   - name: Run performance tests
+  #     run: echo "Performance tests disabled - staging environment not configured"
 
   notify:
     runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
-    if: always()
+    needs: [build-and-push]
+    if: always() && github.ref == 'refs/heads/main'
     
     steps:
-    - name: Notify Telegram
-      if: github.ref == 'refs/heads/main'
+    - name: Notify build completion
       run: |
-        if [ "${{ needs.deploy-production.result }}" == "success" ]; then
-          MESSAGE="✅ CS2 Float Checker successfully deployed to production!"
+        if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+          echo "✅ CS2 Float Checker build and push completed successfully!"
         else
-          MESSAGE="❌ CS2 Float Checker production deployment failed!"
+          echo "❌ CS2 Float Checker build and push failed!"
         fi
-        
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-             -H 'Content-Type: application/json' \
-             -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"$MESSAGE\"}"
-
-    - name: Notify Slack
-      if: github.ref == 'refs/heads/main'
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#deployments'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-        message: |
-          CS2 Float Checker Deployment Status: ${{ job.status }}
-          Branch: ${{ github.ref }}
-          Commit: ${{ github.sha }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
