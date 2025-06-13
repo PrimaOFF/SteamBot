@@ -287,6 +287,9 @@ def main():
     parser.add_argument('--stats', action='store_true', help='Show database statistics')
     parser.add_argument('--all-weapons', action='store_true', help='Scan all weapons from database')
     parser.add_argument('--test-telegram', action='store_true', help='Test Telegram notifications')
+    parser.add_argument('--enhanced', action='store_true', help='Use enhanced optimized scanning')
+    parser.add_argument('--aggressive', action='store_true', help='Use aggressive scanning mode (fastest)')
+    parser.add_argument('--full-market', action='store_true', help='Scan entire CS2 market (enhanced mode only)')
     
     args = parser.parse_args()
     
@@ -306,6 +309,21 @@ def main():
     if args.test_telegram:
         success = checker.test_telegram()
         print("✅ Telegram test successful!" if success else "❌ Telegram test failed!")
+        return
+    
+    if args.enhanced or args.aggressive or args.full_market:
+        # Use enhanced scanner
+        import asyncio
+        from enhanced_float_checker import EnhancedFloatChecker
+        enhanced_checker = EnhancedFloatChecker()
+        
+        if args.full_market:
+            asyncio.run(enhanced_checker.scan_entire_market_optimized())
+        elif args.continuous:
+            interval = 5 if args.aggressive else args.interval
+            asyncio.run(enhanced_checker.continuous_aggressive_scan(interval))
+        else:
+            asyncio.run(enhanced_checker.scan_entire_market_optimized())
         return
     
     if args.all_weapons:

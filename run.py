@@ -69,27 +69,49 @@ def main():
                 print("⚠️ Telegram connection failed")
         
         print("\n🔍 Choose scanning mode:")
-        print("1. Scan all weapons (comprehensive)")
-        print("2. Scan monitored items only")
-        print("3. Continuous scanning")
-        print("4. Custom item scan")
-        print("5. Show statistics")
+        print("1. 🚀 ENHANCED: Full market scan (optimized)")
+        print("2. ⚡ ENHANCED: Continuous aggressive scanning")
+        print("3. 📊 Standard: Scan monitored items only")
+        print("4. 🔄 Standard: Continuous scanning (slow)")
+        print("5. 🎯 Custom item scan")
+        print("6. 📈 Show statistics")
+        print("7. 🧪 Test API performance")
         
-        choice = input("\nEnter your choice (1-5): ").strip()
+        choice = input("\nEnter your choice (1-7): ").strip()
         
         if choice == "1":
-            print("🔍 Starting comprehensive weapon scan...")
-            checker.scan_all_weapons(max_items_per_weapon=user_config.get('MAX_LISTINGS', 50) // 10)
+            print("🚀 Starting ENHANCED full market scan...")
+            print("⚡ This will scan the ENTIRE CS2 market with maximum efficiency!")
+            confirm = input("Continue? (y/n): ").lower().startswith('y')
+            if confirm:
+                import asyncio
+                from enhanced_float_checker import EnhancedFloatChecker
+                enhanced_checker = EnhancedFloatChecker()
+                asyncio.run(enhanced_checker.scan_entire_market_optimized())
             
         elif choice == "2":
-            print("🔍 Scanning monitored items...")
-            checker.scan_multiple_items(checker.config.MONITORED_ITEMS, user_config.get('MAX_LISTINGS', 50))
+            print("⚡ Starting ENHANCED continuous aggressive scanning...")
+            interval = input(f"Scan interval in minutes (default: 5, minimum: 1): ").strip()
+            try:
+                interval = max(1, int(interval)) if interval else 5
+            except ValueError:
+                interval = 5
+            
+            print(f"🔄 Starting aggressive scanning every {interval} minutes...")
+            import asyncio
+            from enhanced_float_checker import EnhancedFloatChecker
+            enhanced_checker = EnhancedFloatChecker()
+            asyncio.run(enhanced_checker.continuous_aggressive_scan(interval))
             
         elif choice == "3":
-            print(f"🔄 Starting continuous scanning (every {user_config.get('SCAN_INTERVAL', 30)} minutes)...")
-            checker.continuous_scan(checker.config.MONITORED_ITEMS, user_config.get('SCAN_INTERVAL', 30))
+            print("📊 Scanning monitored items (standard mode)...")
+            checker.scan_multiple_items(checker.config.MONITORED_ITEMS, user_config.get('MAX_LISTINGS', 50))
             
         elif choice == "4":
+            print(f"🔄 Starting standard continuous scanning (every {user_config.get('SCAN_INTERVAL', 30)} minutes)...")
+            checker.continuous_scan(checker.config.MONITORED_ITEMS, user_config.get('SCAN_INTERVAL', 30))
+            
+        elif choice == "5":
             items = input("Enter item names (separated by commas): ").strip()
             if items:
                 item_list = [item.strip() for item in items.split(',')]
@@ -97,11 +119,25 @@ def main():
             else:
                 print("❌ No items specified")
                 
-        elif choice == "5":
+        elif choice == "6":
             stats = checker.database.get_statistics()
             print("\n📊 Database Statistics:")
             for key, value in stats.items():
                 print(f"{key.replace('_', ' ').title()}: {value}")
+                
+        elif choice == "7":
+            print("🧪 Testing API performance...")
+            import asyncio
+            from enhanced_float_checker import EnhancedFloatChecker
+            enhanced_checker = EnhancedFloatChecker()
+            # Run performance test
+            import subprocess
+            result = subprocess.run([
+                sys.executable, "enhanced_float_checker.py", "--test-performance"
+            ], capture_output=True, text=True)
+            print(result.stdout)
+            if result.stderr:
+                print("Errors:", result.stderr)
             
         else:
             print("❌ Invalid choice")

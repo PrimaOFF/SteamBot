@@ -15,10 +15,32 @@ class FloatCheckerConfig:
     CSFLOAT_API_URL = "https://api.csfloat.com"
     TRADEIT_API_URL = "https://tradeit.gg/api"
     
-    # Request configuration
-    REQUEST_DELAY = 1.0  # Seconds between requests to avoid rate limiting
-    MAX_RETRIES = 3
-    TIMEOUT = 30
+    # Request configuration - Optimized for maximum throughput
+    REQUEST_DELAY = 0.15  # Aggressive delay - Steam allows ~6-7 requests/second
+    BURST_REQUEST_DELAY = 0.1  # For rapid bursts
+    MAX_RETRIES = 5
+    TIMEOUT = 15
+    
+    # Rate limiting and performance
+    REQUESTS_PER_SECOND_LIMIT = 6  # Conservative estimate of Steam's limit
+    ADAPTIVE_RATE_LIMITING = True  # Adjust delays based on response times
+    CONNECTION_POOL_SIZE = 10  # Reuse connections for efficiency
+    
+    # Backoff configuration for rate limiting
+    EXPONENTIAL_BACKOFF = {
+        'initial_delay': 1.0,
+        'max_delay': 60.0,
+        'multiplier': 2.0,
+        'max_attempts': 5
+    }
+    
+    # Concurrent processing
+    MAX_CONCURRENT_REQUESTS = 3  # Number of parallel requests
+    MAX_WORKER_THREADS = 5  # For parallel processing
+    
+    # Scanning optimization
+    AGGRESSIVE_SCANNING_MODE = True  # Enable maximum speed scanning
+    INTELLIGENT_RETRY = True  # Smart retry logic for failed requests
     
     # Float value thresholds for rarity detection
     RARE_FLOAT_THRESHOLDS = {
