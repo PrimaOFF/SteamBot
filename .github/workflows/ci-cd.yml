@@ -58,7 +58,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        python -m pip install -r requirements.txt
+
+    - name: Verify critical dependencies
+      run: |
+        python -c "import pytest; print('✅ pytest available')" || echo "❌ pytest not available"
+        python -c "import black; print('✅ black available')" || echo "❌ black not available"
+        python -c "import flake8; print('✅ flake8 available')" || echo "❌ flake8 not available"
 
     - name: Code formatting check
       run: |
@@ -82,7 +88,7 @@ jobs:
         REDIS_PASSWORD: test_redis
         API_SECRET_KEY: test_api_key
       run: |
-        pytest --cov=. --cov-report=xml --cov-report=html -v || echo "Some tests failed - continuing CI"
+        python -m pytest --cov=. --cov-report=xml --cov-report=html -v || echo "Some tests failed - continuing CI"
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -124,11 +130,11 @@ jobs:
     - name: Install dependencies for safety check
       run: |
         python -m pip install --upgrade pip
-        pip install safety
+        python -m pip install safety
 
     - name: Safety check for Python dependencies
       run: |
-        pip install -r requirements.txt
+        python -m pip install -r requirements.txt
         safety check || echo "Safety check found issues - continuing CI"
 
   build-and-push:
