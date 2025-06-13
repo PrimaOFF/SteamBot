@@ -137,28 +137,35 @@ class SteamMarketAPI:
         """Get only Factory New and Battle-Scarred variants for extreme float scanning"""
         variants = []
         
+        self.logger.info(f"🎯 Generating extreme float variants for: {base_skin_name}")
+        
         # Check if skin has specific restrictions
         if base_skin_name in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+            self.logger.info(f"⚠️ {base_skin_name} cannot exist in Factory New")
             # Only add Battle-Scarred if it exists
             if base_skin_name not in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
                 variants.append(f"{base_skin_name} (Battle-Scarred)")
+                self.logger.info(f"✅ Added: {base_skin_name} (Battle-Scarred)")
         elif base_skin_name in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+            self.logger.info(f"⚠️ {base_skin_name} cannot exist in Battle-Scarred")
             # Only add Factory New
             variants.append(f"{base_skin_name} (Factory New)")
+            self.logger.info(f"✅ Added: {base_skin_name} (Factory New)")
         else:
             # Add both FN and BS if they exist
             variants.append(f"{base_skin_name} (Factory New)")
             variants.append(f"{base_skin_name} (Battle-Scarred)")
+            self.logger.info(f"✅ Added both: {base_skin_name} (Factory New) and (Battle-Scarred)")
+        
+        if not variants:
+            self.logger.warning(f"🚫 No extreme float variants possible for {base_skin_name}")
         
         return variants
     
     def get_all_skin_variants(self, base_skin_name: str) -> List[str]:
-        """Get all wear variants of a skin (legacy method)"""
-        variants = []
-        for wear in self.config.WEAR_RANGES.keys():
-            variant_name = f"{base_skin_name} ({wear})"
-            variants.append(variant_name)
-        return variants
+        """DEPRECATED: Redirects to extreme float variants only"""
+        self.logger.warning(f"⚠️ get_all_skin_variants() is deprecated - using extreme float variants only for {base_skin_name}")
+        return self.get_extreme_float_variants(base_skin_name)
     
     def is_extreme_float_candidate(self, float_value: float, item_name: str) -> bool:
         """Check if a float value qualifies as extreme for the specific item"""

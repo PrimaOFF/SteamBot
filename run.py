@@ -68,64 +68,60 @@ def main():
             else:
                 print("⚠️ Telegram connection failed")
         
-        print("\n🔍 Choose scanning mode:")
-        print("1. 🚀 ENHANCED: Full market scan (optimized)")
-        print("2. ⚡ ENHANCED: Continuous aggressive scanning")
-        print("3. 📊 Standard: Scan monitored items only")
-        print("4. 🔄 Standard: Continuous scanning (slow)")
-        print("5. 🎯 Custom item scan")
-        print("6. 📈 Show statistics")
-        print("7. 🧪 Test API performance")
+        print("\n🎯 Choose scanning mode (ALL modes scan EXTREME FLOATS ONLY):")
+        print("1. 🚀 Full market scan for extreme floats (FN < 0.0001, BS > 0.99)")
+        print("2. ⚡ Continuous extreme float scanning")
+        print("3. 📊 Scan monitored items for extreme floats")
+        print("4. 🎯 Custom item extreme float scan")
+        print("5. 📈 Show statistics")
+        print("6. 🧪 Test API performance")
         
-        choice = input("\nEnter your choice (1-7): ").strip()
+        choice = input("\nEnter your choice (1-6): ").strip()
         
         if choice == "1":
-            print("🚀 Starting ENHANCED full market scan...")
-            print("⚡ This will scan the ENTIRE CS2 market with maximum efficiency!")
+            print("🎯 Starting full market scan for EXTREME FLOATS...")
+            print("🔍 This will scan ONLY Factory New < 0.0001 and Battle-Scarred > 0.99")
             confirm = input("Continue? (y/n): ").lower().startswith('y')
             if confirm:
                 import asyncio
                 from enhanced_float_checker import EnhancedFloatChecker
                 enhanced_checker = EnhancedFloatChecker()
-                asyncio.run(enhanced_checker.scan_entire_market_optimized())
+                asyncio.run(enhanced_checker.scan_extreme_floats_optimized())
             
         elif choice == "2":
-            print("⚡ Starting ENHANCED continuous aggressive scanning...")
+            print("⚡ Starting continuous EXTREME FLOAT scanning...")
             interval = input(f"Scan interval in minutes (default: 5, minimum: 1): ").strip()
             try:
                 interval = max(1, int(interval)) if interval else 5
             except ValueError:
                 interval = 5
             
-            print(f"🔄 Starting aggressive scanning every {interval} minutes...")
+            print(f"🔄 Starting extreme float scanning every {interval} minutes...")
             import asyncio
             from enhanced_float_checker import EnhancedFloatChecker
             enhanced_checker = EnhancedFloatChecker()
             asyncio.run(enhanced_checker.continuous_aggressive_scan(interval))
             
         elif choice == "3":
-            print("📊 Scanning monitored items (standard mode)...")
+            print("🎯 Scanning monitored items for EXTREME FLOATS...")
             checker.scan_multiple_items(checker.config.MONITORED_ITEMS, user_config.get('MAX_LISTINGS', 50))
             
         elif choice == "4":
-            print(f"🔄 Starting standard continuous scanning (every {user_config.get('SCAN_INTERVAL', 30)} minutes)...")
-            checker.continuous_scan(checker.config.MONITORED_ITEMS, user_config.get('SCAN_INTERVAL', 30))
-            
-        elif choice == "5":
             items = input("Enter item names (separated by commas): ").strip()
             if items:
                 item_list = [item.strip() for item in items.split(',')]
+                print("🎯 Scanning custom items for EXTREME FLOATS...")
                 checker.scan_multiple_items(item_list, user_config.get('MAX_LISTINGS', 50))
             else:
                 print("❌ No items specified")
                 
-        elif choice == "6":
+        elif choice == "5":
             stats = checker.database.get_statistics()
             print("\n📊 Database Statistics:")
             for key, value in stats.items():
                 print(f"{key.replace('_', ' ').title()}: {value}")
                 
-        elif choice == "7":
+        elif choice == "6":
             print("🧪 Testing API performance...")
             import asyncio
             from enhanced_float_checker import EnhancedFloatChecker

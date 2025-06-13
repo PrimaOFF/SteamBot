@@ -147,11 +147,21 @@ class CS2FloatChecker:
                 wear_condition = wear
                 break
         
+        # CRITICAL: Only allow Factory New and Battle-Scarred
+        if wear_condition not in ["Factory New", "Battle-Scarred"]:
+            self.logger.error(f"🚫 INVALID WEAR: {wear_condition} in {item_name} - Only FN and BS allowed!")
+            return None
+        
         # Get skin-specific ranges if available
         skin_data = self.config.SKIN_SPECIFIC_RANGES.get(base_skin, {})
         
         # Generate extreme floats with higher probability
         if wear_condition == "Factory New":
+            # Check if this skin can exist in FN
+            if skin_data.get('Factory New') is None and base_skin in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+                self.logger.error(f"🚫 {base_skin} cannot exist in Factory New!")
+                return None
+                
             extreme_fn = skin_data.get('extreme_fn', 0.0001)
             
             # 20% chance of generating extreme float
@@ -165,6 +175,11 @@ class CS2FloatChecker:
                 return random.uniform(0.0, 0.07)
                 
         elif wear_condition == "Battle-Scarred":
+            # Check if this skin can exist in BS
+            if skin_data.get('Battle-Scarred') is None and base_skin in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+                self.logger.error(f"🚫 {base_skin} cannot exist in Battle-Scarred!")
+                return None
+                
             # Get skin-specific BS range
             bs_range = skin_data.get('Battle-Scarred', (0.45, 1.00))
             extreme_bs = skin_data.get('extreme_bs', 0.999)
@@ -187,23 +202,32 @@ class CS2FloatChecker:
         return self.simulate_extreme_float_value(item_name)
     
     def scan_multiple_items(self, item_names: List[str], max_listings_per_item: int = 50) -> Dict[str, List[FloatAnalysis]]:
-        """Scan multiple items"""
+        """Scan multiple items for EXTREME FLOATS ONLY (FN < 0.0001, BS > 0.99)"""
         self.stats['start_time'] = datetime.now()
         results = {}
         
-        self.logger.info(f"Starting scan of {len(item_names)} items...")
+        self.logger.info(f"🎯 Starting EXTREME FLOAT scan of {len(item_names)} items...")
+        self.logger.info("🔍 Target: Factory New < 0.0001 and Battle-Scarred > 0.99 ONLY")
         self.telegram.send_startup_notification()
         
+        total_variants_to_scan = 0
+        for item_name in item_names:
+            variants = self.steam_api.get_extreme_float_variants(item_name)
+            total_variants_to_scan += len(variants)
+        
+        self.logger.info(f"📊 Will scan {total_variants_to_scan} extreme float variants (instead of {len(item_names) * 5} with old method)")
+        
         for i, item_name in enumerate(item_names, 1):
-            self.logger.info(f"Progress: {i}/{len(item_names)} - {item_name}")
+            self.logger.info(f"🎯 Progress: {i}/{len(item_names)} - {item_name}")
             
-            analyses = self.scan_item(item_name, max_listings_per_item)
+            # Use extreme float scanning only
+            analyses = self.scan_item_extreme_floats(item_name, max_listings_per_item)
             results[item_name] = analyses
             
             # Print progress
             self.print_progress_stats()
         
-        self.logger.info("Scan completed!")
+        self.logger.info("🎯 EXTREME FLOAT scan completed!")
         self.print_final_stats()
         
         # Send completion summary
@@ -291,16 +315,17 @@ class CS2FloatChecker:
         }
     
     def scan_all_weapons(self, max_items_per_weapon: int = 20) -> Dict[str, List[FloatAnalysis]]:
-        """Scan all available weapons from the database"""
-        self.logger.info("Starting comprehensive weapon scan...")
+        """Scan all available weapons from the database for EXTREME FLOATS ONLY"""
+        self.logger.info("🎯 Starting comprehensive weapon scan for EXTREME FLOATS...")
+        self.logger.info("🔍 Target: Only Factory New < 0.0001 and Battle-Scarred > 0.99")
         
         all_weapons = self.skin_db.get_all_weapons()
         self.logger.info(f"Found {len(all_weapons)} weapon types in database")
         
         results = {}
-        total_items = []
+        extreme_float_items = []
         
-        # Get representative skins for each weapon
+        # Get representative skins for each weapon that can have extreme floats
         for weapon in all_weapons[:50]:  # Limit to first 50 weapons to avoid overwhelming
             weapon_skins = self.skin_db.get_skins_by_weapon(weapon)
             
@@ -308,11 +333,16 @@ class CS2FloatChecker:
             selected_skins = weapon_skins[:max_items_per_weapon]
             
             for skin in selected_skins:
-                total_items.append(skin.name)
+                # Only add skins that can actually have extreme floats
+                variants = self.steam_api.get_extreme_float_variants(skin.name)
+                if variants:  # Only add if it has valid FN or BS variants
+                    extreme_float_items.append(skin.name)
         
-        self.logger.info(f"Selected {len(total_items)} items to scan")
+        self.logger.info(f"🎯 Selected {len(extreme_float_items)} items that can have extreme floats")
+        self.logger.info("⚠️ Skipped items that can't have FN < 0.0001 or BS > 0.99")
         
-        return self.scan_multiple_items(total_items)
+        # Use extreme float scanning for all items
+        return self.scan_multiple_items(extreme_float_items)
     
     def test_telegram(self) -> bool:
         """Test Telegram connection"""
