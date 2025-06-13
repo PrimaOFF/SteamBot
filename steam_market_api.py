@@ -133,10 +133,56 @@ class SteamMarketAPI:
         """Apply rate limiting delay"""
         time.sleep(self.config.REQUEST_DELAY)
     
+    def get_extreme_float_variants(self, base_skin_name: str) -> List[str]:
+        """Get only Factory New and Battle-Scarred variants for extreme float scanning"""
+        variants = []
+        
+        # Check if skin has specific restrictions
+        if base_skin_name in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+            # Only add Battle-Scarred if it exists
+            if base_skin_name not in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+                variants.append(f"{base_skin_name} (Battle-Scarred)")
+        elif base_skin_name in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+            # Only add Factory New
+            variants.append(f"{base_skin_name} (Factory New)")
+        else:
+            # Add both FN and BS if they exist
+            variants.append(f"{base_skin_name} (Factory New)")
+            variants.append(f"{base_skin_name} (Battle-Scarred)")
+        
+        return variants
+    
     def get_all_skin_variants(self, base_skin_name: str) -> List[str]:
-        """Get all wear variants of a skin"""
+        """Get all wear variants of a skin (legacy method)"""
         variants = []
         for wear in self.config.WEAR_RANGES.keys():
             variant_name = f"{base_skin_name} ({wear})"
             variants.append(variant_name)
         return variants
+    
+    def is_extreme_float_candidate(self, float_value: float, item_name: str) -> bool:
+        """Check if a float value qualifies as extreme for the specific item"""
+        # Extract base skin name
+        base_skin = item_name.split(' (')[0] if ' (' in item_name else item_name
+        
+        # Get skin-specific thresholds
+        if base_skin in self.config.SKIN_SPECIFIC_RANGES:
+            skin_data = self.config.SKIN_SPECIFIC_RANGES[base_skin]
+            
+            # Check Factory New extreme
+            if 'Factory New' in item_name:
+                extreme_fn = skin_data.get('extreme_fn')
+                return extreme_fn is not None and float_value <= extreme_fn
+            
+            # Check Battle-Scarred extreme  
+            elif 'Battle-Scarred' in item_name:
+                extreme_bs = skin_data.get('extreme_bs')
+                return extreme_bs is not None and float_value >= extreme_bs
+        
+        # Fallback to generic thresholds
+        if 'Factory New' in item_name:
+            return float_value <= 0.0001
+        elif 'Battle-Scarred' in item_name:
+            return float_value >= 0.999
+        
+        return False

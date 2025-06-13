@@ -48,17 +48,23 @@ class CS2FloatChecker:
         )
         self.logger = logging.getLogger(__name__)
     
-    def scan_item(self, item_name: str, max_listings: int = 100) -> List[FloatAnalysis]:
-        """Scan a specific item for rare floats"""
-        self.logger.info(f"Scanning {item_name}...")
+    def scan_item_extreme_floats(self, item_name: str, max_listings: int = 100) -> List[FloatAnalysis]:
+        """Scan a specific item for ONLY extreme float values (FN < 0.0001 or BS > 0.99)"""
+        self.logger.info(f"🎯 Scanning {item_name} for extreme floats only...")
         analyses = []
         
         try:
-            # Get all wear variants for this item
-            variants = self.steam_api.get_all_skin_variants(item_name)
+            # Get only Factory New and Battle-Scarred variants that exist for this item
+            extreme_variants = self.steam_api.get_extreme_float_variants(item_name)
             
-            for variant in variants:
-                self.logger.info(f"Checking variant: {variant}")
+            if not extreme_variants:
+                self.logger.warning(f"No valid extreme float variants found for {item_name}")
+                return analyses
+            
+            self.logger.info(f"Extreme variants to scan: {extreme_variants}")
+            
+            for variant in extreme_variants:
+                self.logger.info(f"🔍 Checking variant: {variant}")
                 
                 # Get market listings
                 listings = self.steam_api.get_item_listings(variant, count=max_listings)
@@ -71,43 +77,52 @@ class CS2FloatChecker:
                 inspect_links = self.steam_api.extract_inspect_links(listings)
                 self.logger.info(f"Found {len(inspect_links)} inspect links for {variant}")
                 
-                # Process each inspect link (placeholder for float extraction)
-                for i, inspect_link in enumerate(inspect_links[:10]):  # Limit to first 10 for demo
+                # Process each inspect link
+                extreme_found = 0
+                for i, inspect_link in enumerate(inspect_links[:20]):  # Check more items for extreme floats
                     # In a real implementation, you'd call a third-party API here
-                    # For now, simulate float values
-                    simulated_float = self.simulate_float_value(variant)
-                    simulated_price = 10.0 + (i * 5.0)  # Simulate price
+                    # For now, simulate float values with higher chance of extremes
+                    simulated_float = self.simulate_extreme_float_value(variant)
+                    simulated_price = 15.0 + (i * 8.0)  # Simulate higher prices for extreme items
                     
                     if simulated_float is not None:
-                        analysis = self.analyzer.analyze_float_rarity(
-                            variant, simulated_float, simulated_price
-                        )
-                        analysis.inspect_link = inspect_link
-                        analyses.append(analysis)
-                        
-                        # Save to database
-                        self.database.save_analysis(analysis)
-                        
-                        self.stats['items_checked'] += 1
-                        
-                        # Update weapon stats
-                        weapon = analysis.item_name.split(' | ')[0] if ' | ' in analysis.item_name else analysis.item_name
-                        self.stats['weapon_stats'][weapon] = self.stats['weapon_stats'].get(weapon, 0) + 1
-                        
-                        if analysis.is_rare:
-                            self.stats['rare_items_found'] += 1
-                            self.stats['total_value_found'] += analysis.price
+                        # Only process if it's actually an extreme float
+                        if self.steam_api.is_extreme_float_candidate(simulated_float, variant):
+                            analysis = self.analyzer.analyze_float_rarity(
+                                variant, simulated_float, simulated_price
+                            )
+                            analysis.inspect_link = inspect_link
+                            analyses.append(analysis)
                             
-                            # Update best find
-                            if not self.stats['best_find'] or analysis.rarity_score > self.stats['best_find'].rarity_score:
-                                self.stats['best_find'] = analysis
+                            # Save to database
+                            self.database.save_analysis(analysis)
                             
-                            self.logger.info(f"RARE ITEM FOUND: {analysis.item_name} - Float: {analysis.float_value:.6f} - Score: {analysis.rarity_score}")
+                            self.stats['items_checked'] += 1
+                            extreme_found += 1
                             
-                            # Send Telegram notification
-                            self.telegram.send_rare_float_alert(analysis)
+                            # Update weapon stats
+                            weapon = analysis.item_name.split(' | ')[0] if ' | ' in analysis.item_name else analysis.item_name
+                            self.stats['weapon_stats'][weapon] = self.stats['weapon_stats'].get(weapon, 0) + 1
+                            
+                            if analysis.is_rare:
+                                self.stats['rare_items_found'] += 1
+                                self.stats['total_value_found'] += analysis.price
+                                
+                                # Update best find
+                                if not self.stats['best_find'] or analysis.rarity_score > self.stats['best_find'].rarity_score:
+                                    self.stats['best_find'] = analysis
+                                
+                                self.logger.info(f"🚨 EXTREME FLOAT FOUND: {analysis.item_name} - Float: {analysis.float_value:.6f} - Score: {analysis.rarity_score}")
+                                
+                                # Send Telegram notification
+                                self.telegram.send_rare_float_alert(analysis)
+                        else:
+                            # Skip non-extreme floats to save processing
+                            continue
                 
-                # Rate limiting
+                self.logger.info(f"✅ Found {extreme_found} extreme floats in {variant}")
+                
+                # Reduced rate limiting since we're checking fewer items
                 self.steam_api.rate_limit_delay()
         
         except Exception as e:
@@ -116,34 +131,60 @@ class CS2FloatChecker:
         
         return analyses
     
-    def simulate_float_value(self, item_name: str) -> Optional[float]:
-        """Simulate float value extraction (placeholder)"""
-        # In a real implementation, this would call a third-party API
-        # For demo purposes, generate random float values within wear ranges
+    def scan_item(self, item_name: str, max_listings: int = 100) -> List[FloatAnalysis]:
+        """Legacy method - redirects to extreme float scanning"""
+        return self.scan_item_extreme_floats(item_name, max_listings)
+    
+    def simulate_extreme_float_value(self, item_name: str) -> Optional[float]:
+        """Simulate extreme float values for testing (placeholder for real API)"""
         import random
         
-        # Extract wear condition from item name
+        # Extract base skin name and wear condition
+        base_skin = item_name.split(' (')[0] if ' (' in item_name else item_name
         wear_condition = "Factory New"  # Default
         for wear in self.config.WEAR_RANGES.keys():
             if wear in item_name:
                 wear_condition = wear
                 break
         
-        # Get range for this wear condition
-        if wear_condition in self.config.WEAR_RANGES:
-            min_val, max_val = self.config.WEAR_RANGES[wear_condition]
+        # Get skin-specific ranges if available
+        skin_data = self.config.SKIN_SPECIFIC_RANGES.get(base_skin, {})
+        
+        # Generate extreme floats with higher probability
+        if wear_condition == "Factory New":
+            extreme_fn = skin_data.get('extreme_fn', 0.0001)
             
-            # Occasionally generate rare floats
-            if random.random() < 0.05:  # 5% chance of rare float
-                if wear_condition == "Factory New":
-                    return random.uniform(0.0, 0.005)  # Very low float
-                elif wear_condition == "Battle-Scarred":
-                    return random.uniform(0.995, 1.0)  # Very high float
+            # 20% chance of generating extreme float
+            if random.random() < 0.2:
+                return random.uniform(0.0, extreme_fn)
+            else:
+                # Normal FN range 
+                fn_range = skin_data.get('Factory New', (0.00, 0.07))
+                if fn_range:
+                    return random.uniform(fn_range[0], fn_range[1])
+                return random.uniform(0.0, 0.07)
+                
+        elif wear_condition == "Battle-Scarred":
+            # Get skin-specific BS range
+            bs_range = skin_data.get('Battle-Scarred', (0.45, 1.00))
+            extreme_bs = skin_data.get('extreme_bs', 0.999)
             
-            # Normal float within range
-            return random.uniform(min_val, max_val)
+            if bs_range:
+                # 20% chance of generating extreme float
+                if random.random() < 0.2:
+                    return random.uniform(extreme_bs, bs_range[1])
+                else:
+                    # Normal BS range
+                    return random.uniform(bs_range[0], bs_range[1])
+            else:
+                return None  # This wear doesn't exist for this skin
         
         return None
+    
+    def simulate_float_value(self, item_name: str) -> Optional[float]:
+        """Simulate float value extraction (placeholder) - legacy method"""
+        # Redirect to extreme float simulation for better testing
+        return self.simulate_extreme_float_value(item_name)
     
     def scan_multiple_items(self, item_names: List[str], max_listings_per_item: int = 50) -> Dict[str, List[FloatAnalysis]]:
         """Scan multiple items"""

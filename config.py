@@ -87,21 +87,218 @@ class FloatCheckerConfig:
     ENABLE_NOTIFICATIONS = True
     NOTIFICATION_THRESHOLD_VALUE = 1000.0  # USD value threshold for notifications
     
-    # Skin-specific float ranges (some skins have restricted ranges)
+    # Comprehensive skin-specific float ranges and extreme thresholds
     SKIN_SPECIFIC_RANGES = {
-        "M4A4 | Howl": {
-            'Factory New': (0.00, 0.04),
-            'Minimal Wear': (0.04, 0.08),
-            'Field-Tested': (0.08, 0.37),
-            'Well-Worn': (0.37, 0.45),
-            'Battle-Scarred': (0.45, 1.00)
+        # AK-47 Series
+        "AK-47 | Crossfade": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 0.50),  # Max 0.50
+            'extreme_fn': 0.0001,  # Extremely rare FN
+            'extreme_bs': 0.499    # Extremely rare BS (close to max)
         },
+        "AK-47 | Redline": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "AK-47 | Fire Serpent": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "AK-47 | Case Hardened": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "AK-47 | Vulcan": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # AWP Series  
         "AWP | Dragon Lore": {
             'Factory New': (0.00, 0.07),
-            'Minimal Wear': (0.07, 0.15),
-            'Field-Tested': (0.15, 0.37),
-            'Well-Worn': (0.37, 0.45),
-            'Battle-Scarred': (0.45, 1.00)
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "AWP | Asiimov": {
+            'Factory New': None,  # Doesn't exist in FN
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': None,
+            'extreme_bs': 0.999
+        },
+        "AWP | Lightning Strike": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,  # Doesn't exist in BS
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        "AWP | Hyper Beast": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # M4A4 Series
+        "M4A4 | Howl": {
+            'Factory New': (0.00, 0.04),  # Restricted range
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "M4A4 | Asiimov": {
+            'Factory New': None,  # Doesn't exist in FN
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': None,
+            'extreme_bs': 0.999
+        },
+        "M4A4 | Dragon King": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # M4A1-S Series
+        "M4A1-S | Hot Rod": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,  # Doesn't exist in BS
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        "M4A1-S | Hyper Beast": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "M4A1-S | Cyrex": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # Glock Series
+        "Glock-18 | Fade": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,  # Doesn't exist in BS
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        "Glock-18 | Water Elemental": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # USP-S Series
+        "USP-S | Kill Confirmed": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        "USP-S | Orion": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # Knife Series (most knives don't have BS)
+        "Karambit | Doppler": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        "Karambit | Fade": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        "Butterfly Knife | Fade": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': None,
+            'extreme_fn': 0.0001,
+            'extreme_bs': None
+        },
+        
+        # Gloves (special case - very limited wear ranges)
+        "Sport Gloves | Pandora's Box": {
+            'Factory New': None,  # Doesn't exist in FN
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': None,
+            'extreme_bs': 0.999
+        },
+        "Driver Gloves | King Snake": {
+            'Factory New': None,
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': None,
+            'extreme_bs': 0.999
+        },
+        
+        # Popular rifles with unique ranges
+        "FAMAS | Afterimage": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 0.65),  # Limited BS range
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.649
+        },
+        "Galil AR | Cerberus": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.999
+        },
+        
+        # SMGs with special ranges
+        "P90 | Asiimov": {
+            'Factory New': None,
+            'Battle-Scarred': (0.45, 1.00),
+            'extreme_fn': None,
+            'extreme_bs': 0.999
+        },
+        "MP7 | Skulls": {
+            'Factory New': (0.00, 0.07),
+            'Battle-Scarred': (0.45, 0.75),  # Limited range
+            'extreme_fn': 0.0001,
+            'extreme_bs': 0.749
         }
-        # Add more skin-specific ranges as needed
+    }
+    
+    # Items that only exist in specific wear conditions
+    WEAR_RESTRICTIONS = {
+        # Items that don't exist in Factory New
+        'no_factory_new': [
+            "AWP | Asiimov",
+            "M4A4 | Asiimov", 
+            "P90 | Asiimov",
+            "Sport Gloves | Pandora's Box",
+            "Driver Gloves | King Snake",
+            "Hand Wraps | Cobalt Skulls"
+        ],
+        
+        # Items that don't exist in Battle-Scarred
+        'no_battle_scarred': [
+            "AWP | Lightning Strike",
+            "M4A1-S | Hot Rod",
+            "Glock-18 | Fade",
+            "Karambit | Doppler",
+            "Karambit | Fade", 
+            "Butterfly Knife | Fade",
+            "Bayonet | Doppler",
+            "USP-S | Neo-Noir"
+        ]
     }

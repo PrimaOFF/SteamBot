@@ -74,47 +74,271 @@ class EnhancedFloatChecker:
             logging.getLogger('aiohttp').setLevel(logging.WARNING)
             logging.getLogger('asyncio').setLevel(logging.WARNING)
     
-    async def scan_entire_market_optimized(self) -> Dict[str, List[FloatAnalysis]]:
-        """Scan the entire CS2 market with maximum efficiency"""
-        self.logger.info("🚀 Starting optimized full market scan...")
+    async def scan_extreme_floats_optimized(self) -> Dict[str, List[FloatAnalysis]]:
+        """Scan ONLY for extreme float values (FN < 0.0001 and BS > 0.99) with maximum efficiency"""
+        self.logger.info("🎯 Starting optimized EXTREME FLOAT ONLY scan...")
+        self.logger.info("🔍 Target: Factory New < 0.0001 and Battle-Scarred > 0.99")
         self.telegram.send_startup_notification()
         
         results = {}
         scan_start_time = time.time()
         
         async with OptimizedSteamAPI() as steam_api:
-            # Get all available items from skin database
-            all_items = self._get_prioritized_scan_list()
-            total_items = len(all_items)
+            # Get prioritized list of items that can have extreme floats
+            extreme_targets = self._get_extreme_float_targets()
+            total_variants = len(extreme_targets)
             
-            self.logger.info(f"📊 Scanning {total_items} items from complete CS2 database")
+            self.logger.info(f"🎯 Scanning {total_variants} extreme float variants (reduced from ~10,000+ variants)")
             
-            # Process items in optimized batches
-            batch_size = self.config.MAX_CONCURRENT_REQUESTS * 5
+            # Process items in smaller, focused batches
+            batch_size = self.config.MAX_CONCURRENT_REQUESTS * 2  # Smaller batches for precision
             
-            for i in range(0, total_items, batch_size):
+            for i in range(0, total_variants, batch_size):
                 if self.should_stop:
                     break
                 
-                batch = all_items[i:i + batch_size]
-                batch_results = await self._process_item_batch_optimized(steam_api, batch)
+                batch = extreme_targets[i:i + batch_size]
+                batch_results = await self._process_extreme_float_batch(steam_api, batch)
                 
                 for item_name, analyses in batch_results.items():
                     if analyses:
                         results[item_name] = analyses
                 
                 # Update progress
-                progress = ((i + batch_size) / total_items) * 100
+                progress = ((i + batch_size) / total_variants) * 100
                 self._update_scanning_stats(steam_api, progress)
                 
-                # Brief pause between large batches to prevent overwhelming
-                if i % (batch_size * 3) == 0:
-                    await asyncio.sleep(0.5)
+                # Brief pause between batches
+                await asyncio.sleep(0.3)
         
         scan_duration = time.time() - scan_start_time
-        self._log_final_results(scan_duration, results)
+        self._log_extreme_float_results(scan_duration, results)
         
         return results
+    
+    async def scan_entire_market_optimized(self) -> Dict[str, List[FloatAnalysis]]:
+        """Legacy method - redirects to extreme float scanning for efficiency"""
+        return await self.scan_extreme_floats_optimized()
+    
+    def _get_extreme_float_targets(self) -> List[str]:
+        """Get list of skin variants that can have extreme floats"""
+        targets = []
+        
+        # Get base skins from skin database
+        all_weapons = self.skin_db.get_all_weapons()
+        
+        for weapon in all_weapons[:100]:  # Limit to top 100 weapons for performance
+            weapon_skins = self.skin_db.get_skins_by_weapon(weapon)
+            
+            for skin in weapon_skins[:20]:  # Top 20 skins per weapon
+                base_name = skin.name
+                
+                # Check if this skin exists in our specific ranges database
+                if base_name in self.config.SKIN_SPECIFIC_RANGES:
+                    skin_data = self.config.SKIN_SPECIFIC_RANGES[base_name]
+                    
+                    # Add Factory New variant if it exists and can have extreme floats
+                    if skin_data.get('extreme_fn') is not None:
+                        if base_name not in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+                            targets.append(f"{base_name} (Factory New)")
+                    
+                    # Add Battle-Scarred variant if it exists and can have extreme floats
+                    if skin_data.get('extreme_bs') is not None:
+                        if base_name not in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+                            targets.append(f"{base_name} (Battle-Scarred)")
+                
+                # For skins not in our database, use generic extreme thresholds
+                else:
+                    # Add FN if skin can exist in FN
+                    if base_name not in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+                        targets.append(f"{base_name} (Factory New)")
+                    
+                    # Add BS if skin can exist in BS
+                    if base_name not in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+                        targets.append(f"{base_name} (Battle-Scarred)")
+        
+        # Add high-priority items from monitored list
+        for monitored_item in self.config.MONITORED_ITEMS:
+            if monitored_item not in self.config.WEAR_RESTRICTIONS['no_factory_new']:
+                fn_variant = f"{monitored_item} (Factory New)"
+                if fn_variant not in targets:
+                    targets.append(fn_variant)
+            
+            if monitored_item not in self.config.WEAR_RESTRICTIONS['no_battle_scarred']:
+                bs_variant = f"{monitored_item} (Battle-Scarred)"
+                if bs_variant not in targets:
+                    targets.append(bs_variant)
+        
+        self.logger.info(f"🎯 Generated {len(targets)} extreme float target variants")
+        return targets
+    
+    async def _process_extreme_float_batch(self, steam_api, item_variants: List[str]) -> Dict[str, List[FloatAnalysis]]:
+        """Process a batch of item variants looking only for extreme floats"""
+        results = {}
+        
+        # Create tasks for concurrent processing
+        tasks = []
+        for variant in item_variants:
+            task = self._scan_single_variant_for_extremes(steam_api, variant)
+            tasks.append(task)
+        
+        # Execute batch concurrently
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        for i, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                self.logger.error(f"Error processing {item_variants[i]}: {result}")
+                continue
+            
+            if result:
+                variant_name = item_variants[i]
+                results[variant_name] = result
+        
+        return results
+    
+    async def _scan_single_variant_for_extremes(self, steam_api, variant_name: str) -> List[FloatAnalysis]:
+        """Scan a single variant for extreme floats only"""
+        try:
+            # Get market listings for this specific variant
+            listings_data = await steam_api.get_item_listings_async(variant_name, count=50)
+            
+            if not listings_data:
+                return []
+            
+            # Extract inspect links
+            inspect_links = steam_api.extract_inspect_links(listings_data)
+            
+            extreme_analyses = []
+            
+            # Process each inspect link for float value
+            for inspect_link in inspect_links[:15]:  # Check top 15 listings
+                try:
+                    # In real implementation, call third-party API here
+                    # For simulation, use our extreme float generator
+                    float_value = self._simulate_extreme_float_for_variant(variant_name)
+                    
+                    if float_value is not None:
+                        # Check if this is truly an extreme float
+                        if self._is_extreme_float(float_value, variant_name):
+                            # Get simulated price (extreme floats cost more)
+                            simulated_price = self._estimate_extreme_float_price(variant_name, float_value)
+                            
+                            # Analyze the float
+                            analysis = self.analyzer.analyze_float_rarity(
+                                variant_name, float_value, simulated_price
+                            )
+                            analysis.inspect_link = inspect_link
+                            
+                            # Only keep truly rare/extreme items
+                            if analysis.rarity_score >= 80:  # High rarity threshold
+                                extreme_analyses.append(analysis)
+                                
+                                # Save to database
+                                self.database.save_analysis(analysis)
+                                
+                                # Update stats
+                                with self.performance_lock:
+                                    self.stats.items_scanned += 1
+                                    if analysis.is_rare:
+                                        self.stats.rare_items_found += 1
+                                        self.stats.total_value_found += analysis.price
+                                
+                                self.logger.info(f"🚨 EXTREME FLOAT: {variant_name} - {float_value:.6f} - Score: {analysis.rarity_score}")
+                    
+                    # Small delay between items
+                    await asyncio.sleep(0.05)
+                    
+                except Exception as e:
+                    self.logger.debug(f"Error processing inspect link: {e}")
+                    continue
+            
+            return extreme_analyses
+            
+        except Exception as e:
+            self.logger.error(f"Error scanning {variant_name}: {e}")
+            return []
+    
+    def _simulate_extreme_float_for_variant(self, variant_name: str) -> Optional[float]:
+        """Simulate extreme float values with realistic probability"""
+        import random
+        
+        base_skin = variant_name.split(' (')[0]
+        
+        # Get skin-specific data
+        skin_data = self.config.SKIN_SPECIFIC_RANGES.get(base_skin, {})
+        
+        if 'Factory New' in variant_name:
+            extreme_threshold = skin_data.get('extreme_fn', 0.0001)
+            # 10% chance of extreme float in simulation
+            if random.random() < 0.1:
+                return random.uniform(0.0, extreme_threshold)
+            else:
+                # Normal FN range
+                fn_range = skin_data.get('Factory New', (0.00, 0.07))
+                return random.uniform(fn_range[0], fn_range[1]) if fn_range else random.uniform(0.0, 0.07)
+        
+        elif 'Battle-Scarred' in variant_name:
+            bs_range = skin_data.get('Battle-Scarred', (0.45, 1.00))
+            extreme_threshold = skin_data.get('extreme_bs', 0.999)
+            
+            if bs_range:
+                # 10% chance of extreme float
+                if random.random() < 0.1:
+                    return random.uniform(extreme_threshold, bs_range[1])
+                else:
+                    return random.uniform(bs_range[0], bs_range[1])
+        
+        return None
+    
+    def _is_extreme_float(self, float_value: float, variant_name: str) -> bool:
+        """Check if a float value qualifies as extreme for the specific variant"""
+        base_skin = variant_name.split(' (')[0]
+        skin_data = self.config.SKIN_SPECIFIC_RANGES.get(base_skin, {})
+        
+        if 'Factory New' in variant_name:
+            extreme_fn = skin_data.get('extreme_fn', 0.0001)
+            return float_value <= extreme_fn
+        
+        elif 'Battle-Scarred' in variant_name:
+            extreme_bs = skin_data.get('extreme_bs', 0.999)
+            return float_value >= extreme_bs
+        
+        return False
+    
+    def _estimate_extreme_float_price(self, variant_name: str, float_value: float) -> float:
+        """Estimate price for extreme float items (they're worth more)"""
+        # Base price simulation
+        base_price = 50.0  # Minimum for extreme floats
+        
+        if 'Karambit' in variant_name or 'Butterfly' in variant_name:
+            base_price = 500.0
+        elif 'Dragon Lore' in variant_name or 'Howl' in variant_name:
+            base_price = 2000.0
+        elif 'AK-47' in variant_name or 'AWP' in variant_name:
+            base_price = 100.0
+        
+        # Extreme float premium
+        if 'Factory New' in variant_name and float_value <= 0.0001:
+            base_price *= 2.0  # 100% premium for 0.000x floats
+        elif 'Battle-Scarred' in variant_name and float_value >= 0.999:
+            base_price *= 1.5  # 50% premium for 0.999+ floats
+        
+        return base_price
+    
+    def _log_extreme_float_results(self, scan_duration: float, results: Dict):
+        """Log final results for extreme float scan"""
+        total_extreme_found = sum(len(analyses) for analyses in results.values())
+        
+        self.logger.info(f"🎯 EXTREME FLOAT SCAN COMPLETED")
+        self.logger.info(f"⏱️ Duration: {scan_duration:.1f} seconds")
+        self.logger.info(f"🚨 Extreme floats found: {total_extreme_found}")
+        self.logger.info(f"💰 Total value of extreme items: ${self.stats.total_value_found:.2f}")
+        self.logger.info(f"📊 Items scanned: {self.stats.items_scanned}")
+        self.logger.info(f"⚡ Scan rate: {self.stats.items_scanned / scan_duration:.1f} items/sec")
+        
+        if self.stats.best_find:
+            self.logger.info(f"🏆 Best find: {self.stats.best_find.item_name} - {self.stats.best_find.float_value:.6f}")
     
     def _get_prioritized_scan_list(self) -> List[str]:
         """Get prioritized list of all CS2 items to scan"""
