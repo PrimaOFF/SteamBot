@@ -10,11 +10,22 @@ An advanced automated tool that scans the Steam Market for CS2 skins with rare f
 ```bash
 python3 setup.py
 ```
-3. Follow the interactive setup to configure Steam API key and Telegram notifications
+3. Follow the **enhanced interactive setup**:
+   - Steam API key configuration with validation
+   - **Automatic Telegram bot setup** with chat ID detection
+   - Clear explanations of all configuration options
+   - **Instant connection testing** for both Steam and Telegram
 4. Start scanning:
 ```bash
 python3 run.py
 ```
+
+### 🔧 Enhanced Setup Features
+- **Auto-detection** of Telegram chat ID (no manual entry needed!)
+- **Smart validation** of bot tokens and API keys
+- **Detailed explanations** of what each setting does
+- **Immediate testing** - know if it works right away
+- **Better error messages** with specific solutions
 
 ### Manual Setup
 1. Install Python 3.7+ and pip
@@ -129,6 +140,47 @@ Note: You'll need to implement the actual API calls to these services for produc
 - Float values require third-party APIs for accurate extraction
 - Some skins have restricted float ranges not covered by standard ranges
 - Market prices can fluctuate rapidly
+
+## 🔧 Troubleshooting
+
+### Telegram Setup Issues
+
+**Problem: "Chat ID detection failed"**
+- Solution: Make sure you sent a message to your bot first
+- Alternative: Get chat ID manually from `https://api.telegram.org/bot<TOKEN>/getUpdates`
+
+**Problem: "Invalid bot token format"**
+- Solution: Token should look like `123456789:ABCdefGHI...` (numbers:letters)
+- Get a new token from @BotFather on Telegram
+
+**Problem: "Telegram test failed"**
+- Check internet connection
+- Verify bot token is correct
+- Make sure you started the bot with @BotFather
+
+### Steam API Issues
+
+**Problem: "Invalid Steam API key"**
+- Key must be exactly 32 characters
+- Get from: https://steamcommunity.com/dev/apikey
+- Requires Steam account with purchase history
+
+**Problem: "Steam API test inconclusive"**
+- Often due to rate limiting (normal)
+- Wait a few minutes and try again
+- Key is likely valid if format is correct
+
+### General Issues
+
+**Problem: Dependencies won't install**
+- Try: `pip install requests urllib3`
+- On Windows: Use `python -m pip install -r requirements.txt`
+- On Linux: May need `python3-pip` package
+
+**Problem: Script won't run**
+- Ensure Python 3.7+ is installed
+- Check file permissions: `chmod +x setup.py run.py`
+- Try running with full path: `python3 /full/path/to/setup.py`
 
 ## Legal Notice
 

@@ -27,6 +27,7 @@ class TelegramNotifier:
     def send_message(self, message: str, parse_mode: str = 'HTML') -> bool:
         """Send a message to Telegram"""
         if not self.enabled:
+            self.logger.warning("Telegram not enabled - check bot token and chat ID")
             return False
         
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
@@ -39,14 +40,33 @@ class TelegramNotifier:
         }
         
         try:
-            response = requests.post(url, json=payload, timeout=10)
+            response = requests.post(url, json=payload, timeout=15)
             response.raise_for_status()
             
-            self.logger.info("Telegram message sent successfully")
-            return True
+            result = response.json()
+            if result.get('ok'):
+                self.logger.info("Telegram message sent successfully")
+                return True
+            else:
+                self.logger.error(f"Telegram API error: {result.get('description', 'Unknown error')}")
+                return False
             
-        except requests.RequestException as e:
-            self.logger.error(f"Failed to send Telegram message: {e}")
+        except requests.Timeout:
+            self.logger.error("Telegram request timed out")
+            return False
+        except requests.ConnectionError:
+            self.logger.error("Failed to connect to Telegram - check internet connection")
+            return False
+        except requests.HTTPError as e:
+            if e.response.status_code == 401:
+                self.logger.error("Telegram bot token is invalid")
+            elif e.response.status_code == 400:
+                self.logger.error("Bad request to Telegram - check chat ID format")
+            else:
+                self.logger.error(f"Telegram HTTP error {e.response.status_code}: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error sending Telegram message: {e}")
             return False
     
     def send_rare_float_alert(self, analysis: FloatAnalysis) -> bool:
@@ -217,8 +237,15 @@ Ready to hunt for rare floats! 🎯
     def test_connection(self) -> bool:
         """Test Telegram bot connection"""
         if not self.enabled:
-            self.logger.error("Telegram bot not configured")
+            print("❌ Telegram not configured:")
+            if not self.bot_token:
+                print("   • Bot token missing")
+            if not self.chat_id:
+                print("   • Chat ID missing")
             return False
+        
+        print(f"Testing bot token: {self.bot_token[:10]}...{self.bot_token[-5:]}")
+        print(f"Testing chat ID: {self.chat_id}")
         
         test_message = f"""
 🧪 <b>Connection Test</b>
@@ -227,14 +254,18 @@ CS2 Float Checker is successfully connected to Telegram!
 
 <b>🕐 Test Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 <b>✅ Status:</b> All systems operational
+<b>🤖 Bot ID:</b> {self.bot_token.split(':')[0] if ':' in self.bot_token else 'Unknown'}
+<b>💬 Chat ID:</b> {self.chat_id}
 """
         
-        success = self.send_message(test_message)
+        success = self.send_message(test_message.strip())
         
         if success:
             self.logger.info("Telegram connection test successful")
+            print("✅ Test message sent successfully!")
         else:
             self.logger.error("Telegram connection test failed")
+            print("❌ Test message failed - check logs for details")
         
         return success
     
