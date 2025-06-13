@@ -288,9 +288,9 @@ class ProductionDeployment:
                     conn = await asyncpg.connect(
                         host='localhost',
                         port=5432,
-                        user='cs2user',
-                        password='cs2password',
-                        database='cs2_trading'
+                        user=os.getenv('POSTGRES_USER', 'cs2user'),
+                        password=os.getenv('POSTGRES_PASSWORD', 'defaultpass'),
+                        database=os.getenv('POSTGRES_DB', 'cs2_trading')
                     )
                     await conn.execute('SELECT 1')
                     await conn.close()
@@ -304,7 +304,9 @@ class ProductionDeployment:
                 # Redis connection check
                 import aioredis
                 try:
-                    redis = aioredis.from_url('redis://localhost:6379')
+                    redis_password = os.getenv('REDIS_PASSWORD', '')
+                    redis_url = f'redis://:{redis_password}@localhost:6379' if redis_password else 'redis://localhost:6379'
+                    redis = aioredis.from_url(redis_url)
                     await redis.ping()
                     await redis.close()
                     status = "healthy"

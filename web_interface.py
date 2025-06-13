@@ -51,7 +51,9 @@ deployment = ProductionDeployment()
 
 # API key authentication
 async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.credentials != "your-secret-api-key":
+    import os
+    expected_api_key = os.getenv('API_SECRET_KEY', 'default-dev-key')
+    if credentials.credentials != expected_api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return credentials.credentials
 
