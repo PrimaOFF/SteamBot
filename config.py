@@ -15,6 +15,14 @@ class FloatCheckerConfig:
     CSFLOAT_API_URL = "https://api.csfloat.com"
     TRADEIT_API_URL = "https://tradeit.gg/api"
     
+    # CSFloat API Configuration
+    CSFLOAT_RATE_LIMIT = 10  # requests per minute
+    CSFLOAT_MIN_INTERVAL = 6  # seconds between requests
+    CSFLOAT_MAX_RETRIES = 3
+    CSFLOAT_TIMEOUT = 30  # seconds
+    CSFLOAT_CIRCUIT_BREAKER_THRESHOLD = 5  # failures before circuit breaker opens
+    CSFLOAT_CACHE_DURATION_HOURS = 1  # hours to cache results
+    
     # Request configuration - Optimized for maximum throughput
     REQUEST_DELAY = 0.15  # Aggressive delay - Steam allows ~6-7 requests/second
     BURST_REQUEST_DELAY = 0.1  # For rapid bursts

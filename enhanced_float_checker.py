@@ -18,6 +18,7 @@ from database import FloatDatabase
 from config import FloatCheckerConfig
 from skin_database import SkinDatabase
 from telegram_bot import TelegramNotifier
+from csfloat_api import CSFloatAPI, FloatData, get_float_data
 
 @dataclass
 class ScanningStats:
@@ -211,24 +212,36 @@ class EnhancedFloatChecker:
             
             extreme_analyses = []
             
-            # Process each inspect link for float value
-            for inspect_link in inspect_links[:15]:  # Check top 15 listings
-                try:
-                    # In real implementation, call third-party API here
-                    # For simulation, use our extreme float generator
-                    float_value = self._simulate_extreme_float_for_variant(variant_name)
+            # Process inspect links with REAL CSFloat API
+            self.logger.info(f"🔍 Processing {len(inspect_links)} inspect links with CSFloat API...")
+            
+            # Get real float values in batch
+            try:
+                async with CSFloatAPI() as csfloat_api:
+                    real_floats = await csfloat_api.get_multiple_floats(inspect_links[:10], max_concurrent=2)
                     
-                    if float_value is not None:
+                    for i, (inspect_link, float_data) in enumerate(zip(inspect_links[:10], real_floats)):
+                        if float_data is None:
+                            continue
+                        
+                        # Use REAL float value
+                        real_float = float_data.float_value
+                        
                         # Check if this is truly an extreme float
-                        if self._is_extreme_float(float_value, variant_name):
-                            # Get simulated price (extreme floats cost more)
-                            simulated_price = self._estimate_extreme_float_price(variant_name, float_value)
+                        if self._is_extreme_float(real_float, variant_name):
+                            # Get estimated price based on real float data
+                            estimated_price = self._estimate_price_from_float_data(float_data)
                             
                             # Analyze the float
                             analysis = self.analyzer.analyze_float_rarity(
-                                variant_name, float_value, simulated_price
+                                variant_name, real_float, estimated_price
                             )
                             analysis.inspect_link = inspect_link
+                            
+                            # Add CSFloat-specific data
+                            analysis.paint_seed = float_data.paint_seed
+                            analysis.paint_index = float_data.paint_index
+                            analysis.rank_info = f"Rank {float_data.low_rank}-{float_data.high_rank}"
                             
                             # Only keep truly rare/extreme items
                             if analysis.rarity_score >= 80:  # High rarity threshold
@@ -244,10 +257,39 @@ class EnhancedFloatChecker:
                                         self.stats.rare_items_found += 1
                                         self.stats.total_value_found += analysis.price
                                 
-                                self.logger.info(f"🚨 EXTREME FLOAT: {variant_name} - {float_value:.6f} - Score: {analysis.rarity_score}")
-                    
-                    # Small delay between items
-                    await asyncio.sleep(0.05)
+                                self.logger.info(f"🚨 EXTREME FLOAT: {variant_name} - {real_float:.6f} - Score: {analysis.rarity_score}")
+                        else:
+                            self.logger.debug(f"❌ Float {real_float:.6f} not extreme for {variant_name}")
+                        
+                        # Small delay between items
+                        await asyncio.sleep(0.1)
+                        
+            except Exception as e:
+                self.logger.error(f"Error in CSFloat processing: {e}")
+                # Fallback to individual requests if batch fails
+                for inspect_link in inspect_links[:5]:  # Reduced count for fallback
+                    try:
+                        float_data = await get_float_data(inspect_link)
+                        if float_data and self._is_extreme_float(float_data.float_value, variant_name):
+                            # Process as above but individually
+                            analysis = self.analyzer.analyze_float_rarity(
+                                variant_name, float_data.float_value, 
+                                self._estimate_price_from_float_data(float_data)
+                            )
+                            analysis.inspect_link = inspect_link
+                            
+                            if analysis.rarity_score >= 80:
+                                extreme_analyses.append(analysis)
+                                self.database.save_analysis(analysis)
+                                
+                                with self.performance_lock:
+                                    self.stats.items_scanned += 1
+                                    if analysis.is_rare:
+                                        self.stats.rare_items_found += 1
+                                        self.stats.total_value_found += analysis.price
+                    except Exception as inner_e:
+                        self.logger.error(f"Error in fallback processing: {inner_e}")
+                        continue
                     
                 except Exception as e:
                     self.logger.debug(f"Error processing inspect link: {e}")
@@ -325,6 +367,70 @@ class EnhancedFloatChecker:
             base_price *= 1.5  # 50% premium for 0.999+ floats
         
         return base_price
+    
+    def _estimate_price_from_float_data(self, float_data: FloatData) -> float:
+        """Estimate market price based on float data and item information"""
+        try:
+            # Base price estimation based on weapon type and skin name
+            base_price = 10.0  # Default minimum
+            
+            # Weapon type multipliers
+            if 'Karambit' in float_data.weapon_type or 'Butterfly' in float_data.weapon_type:
+                base_price = 300.0
+            elif 'Bayonet' in float_data.weapon_type or 'M9' in float_data.weapon_type:
+                base_price = 200.0
+            elif 'AWP' in float_data.weapon_type:
+                base_price = 50.0
+            elif 'AK-47' in float_data.weapon_type:
+                base_price = 30.0
+            elif 'M4A4' in float_data.weapon_type or 'M4A1-S' in float_data.weapon_type:
+                base_price = 25.0
+            elif 'Glock' in float_data.weapon_type or 'USP' in float_data.weapon_type:
+                base_price = 15.0
+            
+            # Skin rarity multipliers
+            if 'Dragon Lore' in float_data.skin_name or 'Howl' in float_data.skin_name:
+                base_price *= 10.0
+            elif 'Fade' in float_data.skin_name or 'Doppler' in float_data.skin_name:
+                base_price *= 3.0
+            elif 'Asiimov' in float_data.skin_name or 'Redline' in float_data.skin_name:
+                base_price *= 1.5
+            
+            # Float value premium/discount
+            float_multiplier = 1.0
+            
+            if float_data.wear == 'Factory New':
+                if float_data.float_value <= 0.001:
+                    float_multiplier = 3.0  # 300% for extremely low floats
+                elif float_data.float_value <= 0.005:
+                    float_multiplier = 2.0  # 200% for very low floats
+                elif float_data.float_value <= 0.01:
+                    float_multiplier = 1.5  # 150% for low floats
+            
+            elif float_data.wear == 'Battle-Scarred':
+                # Get skin-specific maximum for accurate premium calculation
+                base_skin = float_data.market_name.split(' (')[0]
+                skin_data = self.config.SKIN_SPECIFIC_RANGES.get(base_skin, {})
+                bs_range = skin_data.get('Battle-Scarred', (0.45, 1.0))
+                max_float = bs_range[1] if bs_range else 1.0
+                
+                # Calculate how close to maximum
+                if max_float > 0:
+                    closeness_to_max = float_data.float_value / max_float
+                    if closeness_to_max >= 0.99:
+                        float_multiplier = 2.5  # 250% for extremely high floats
+                    elif closeness_to_max >= 0.95:
+                        float_multiplier = 1.8  # 180% for very high floats
+                    elif closeness_to_max >= 0.90:
+                        float_multiplier = 1.3  # 130% for high floats
+            
+            estimated_price = base_price * float_multiplier
+            
+            return round(estimated_price, 2)
+            
+        except Exception as e:
+            self.logger.error(f"Error estimating price from float data: {e}")
+            return 50.0  # Safe default
     
     def _log_extreme_float_results(self, scan_duration: float, results: Dict):
         """Log final results for extreme float scan"""
